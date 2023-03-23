@@ -7,6 +7,10 @@ android {
     namespace 'com.ssrlab.yourmaplocation'
     compileSdk 33
 
+    buildFeatures {
+        viewBinding true
+    }
+
     defaultConfig {
         applicationId "com.ssrlab.yourmaplocation"
         minSdk 24
