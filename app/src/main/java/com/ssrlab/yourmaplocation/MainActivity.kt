@@ -1,10 +1,11 @@
 package com.ssrlab.yourmaplocation
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
-import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -17,6 +18,7 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.ssrlab.yourmaplocation.databinding.ActivityMainBinding
+import kotlinx.coroutines.*
 import java.io.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -28,6 +30,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private var myLocationX: Double = 0.0
     private var myLocationY: Double = 0.0
     private lateinit var cal: Calendar
+
+    private val job = Job()
+    private val scope = CoroutineScope(Dispatchers.Main + job)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,12 +60,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mapFragment.getMapAsync(this)
 
         mBinding.saveCoordinatesButton.setOnClickListener {
-            onClick(it)
+            onClick()
         }
     }
 
     override fun onMapReady(googleMap: GoogleMap?) {
-        val minsk = LatLng(53.920521, 27.598466)
 
         map = googleMap!!
 
@@ -77,9 +81,58 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.WRITE_EXTERNAL_STORAGE),
                 1
             )
-        } else {
-            true
         }
+
+        f()
+    }
+
+    @SuppressLint("SimpleDateFormat")
+    private fun onClick() {
+        cal = Calendar.getInstance()
+        var minutes: Int = cal.get(Calendar.MINUTE)
+        val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
+        val currentDateAndTime = sdf.format(Date())
+        if (minutes < 10) {
+            minutes += '0'.code
+        }
+        mBinding.latValue.setText(myLocationX.toString())
+        mBinding.lngValue.setText(myLocationY.toString())
+
+        val name: String = mBinding.nameValue.text.toString() + ".txt"
+        val timeT = currentDateAndTime.toString()
+
+        val text = String.format(
+            "filename: %s\nx: %s\ny: %s\ntime: %s",
+            name,
+            myLocationX.toString(),
+            myLocationY.toString(),
+            timeT
+        )
+        writeToFile(text, name, applicationContext)
+        mBinding.nameValue.setText("")
+    }
+
+    private fun writeToFile(data: String, myfile: String, context: Context) {
+        val folder = File(context.filesDir, "myLocs")
+        if (!folder.exists()) folder.mkdirs()
+
+        println(context.filesDir)
+
+        val file = File(folder, myfile)
+        file.printWriter().use { out -> out.println(data) }
+
+        val fileRead = File(folder, myfile)
+        FileInputStream(fileRead).use {
+            println(String(it.readBytes()))
+        }
+
+        Toast.makeText(context, "Запіс зроблен!", Toast.LENGTH_SHORT).show()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun permGrantedAction(){
+        val minsk = LatLng(53.920521, 27.598466)
+
 
         map.isMyLocationEnabled = true
         map.addMarker(MarkerOptions().position(minsk).title("Акадэмія навук"))
@@ -105,41 +158,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         })
     }
 
-    private fun onClick(view: View) {
-        cal = Calendar.getInstance()
-        val hours: Int = cal.get(Calendar.HOUR_OF_DAY)
-        var minutes: Int = cal.get(Calendar.MINUTE)
-        val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
-        val currentDateAndTime = sdf.format(Date())
-        if (minutes < 10) {
-            minutes += '0'.code
+    private fun f(){
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED){
+            permGrantedAction()
+        } else {
+            scope.launch {
+                delay(1000)
+                f()
+            }
         }
-        mBinding.latValue.setText(myLocationX.toString())
-        mBinding.lngValue.setText(myLocationY.toString())
-
-        val name: String = mBinding.nameValue.text.toString() + ".txt"
-        val timeT = currentDateAndTime.toString()
-
-        val text = String.format(
-            "filename: %s\nx: %s\ny: %s\ntime: %s",
-            name,
-            myLocationX.toString(),
-            myLocationY.toString(),
-            timeT
-        )
-        writeToFile(text, name, applicationContext)
-        mBinding.nameValue.setText("")
-    }
-
-    private fun writeToFile(data: String, myfile: String, context: Context) {
-        var toastText = "Запіс зроблен"
-
-        val folder = File(context.filesDir, "myLocs")
-        if (!folder.exists()) folder.mkdirs()
-
-        val file = File(folder, myfile)
-        file.printWriter().use { out -> out.println(data) }
-
-        Toast.makeText(context, "Запіс зроблен!", Toast.LENGTH_SHORT).show()
     }
 }
